@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -27,7 +27,7 @@ model Account {
   id        Int      @id @default(autoincrement())
   name      String
   type      String?  // e.g., 'Bank', 'Cash', 'Alipay'
-  balance   Decimal  @default(0.00) @db.Decimal(10, 2)
+  balance   Decimal  @default(0.00)
   userId    Int
   user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
@@ -52,7 +52,7 @@ model Category {
 
 model Transaction {
   id          Int      @id @default(autoincrement())
-  amount      Decimal  @db.Decimal(10, 2)
+  amount      Decimal
   type        String   // 'EXPENSE' | 'INCOME' | 'TRANSFER'
   date        DateTime @default(now())
   description String?
