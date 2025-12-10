@@ -7,12 +7,7 @@ import { CategoryModule } from '../category/category.module';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [
-    TransactionModule, 
-    AccountModule, 
-    CategoryModule,
-    ConfigModule
-  ],
+  imports: [TransactionModule, AccountModule, CategoryModule, ConfigModule],
   controllers: [AiController],
   providers: [AiService],
 })

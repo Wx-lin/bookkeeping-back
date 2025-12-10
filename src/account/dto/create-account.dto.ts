@@ -12,9 +12,12 @@ export class CreateAccountDto {
   @IsOptional()
   type?: string;
 
-  @ApiPropertyOptional({ description: '初始余额', example: 10000.00, default: 0 })
+  @ApiPropertyOptional({
+    description: '初始余额',
+    example: 10000.0,
+    default: 0,
+  })
   @IsNumber()
   @IsOptional()
   balance?: number;
 }
-

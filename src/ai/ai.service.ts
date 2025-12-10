@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import { AccountService } from '../account/account.service';
 import { CategoryService } from '../category/category.service';
 import { TransactionService } from '../transaction/transaction.service';
-import { CreateTransactionDto, TransactionType } from '../transaction/dto/create-transaction.dto';
+import { CreateTransactionDto } from '../transaction/dto/create-transaction.dto';
 
 @Injectable()
 export class AiService {
@@ -17,7 +17,9 @@ export class AiService {
     private transactionService: TransactionService,
   ) {
     this.openai = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY') || 'dummy-key-for-local-dev',
+      apiKey:
+        this.configService.get<string>('OPENAI_API_KEY') ||
+        'dummy-key-for-local-dev',
     });
   }
 
@@ -26,8 +28,12 @@ export class AiService {
     const accounts = await this.accountService.findAll(userId);
     const categories = await this.categoryService.findAll(userId);
 
-    const accountContext = accounts.map(a => `${a.name} (ID: ${a.id})`).join(', ');
-    const categoryContext = categories.map(c => `${c.name} (ID: ${c.id}, Type: ${c.type})`).join(', ');
+    const accountContext = accounts
+      .map((a) => `${a.name} (ID: ${a.id})`)
+      .join(', ');
+    const categoryContext = categories
+      .map((c) => `${c.name} (ID: ${c.id}, Type: ${c.type})`)
+      .join(', ');
 
     // 2. Build Prompt
     const prompt = `
@@ -70,8 +76,11 @@ export class AiService {
         throw new InternalServerErrorException('AI returned empty response');
       }
       // Clean up potential markdown code blocks
-      const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
-      
+      const cleanContent = content
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
+
       const result = JSON.parse(cleanContent) as CreateTransactionDto;
 
       // 4. Create Transaction
@@ -85,9 +94,8 @@ export class AiService {
       return {
         message: 'Transaction recorded successfully',
         transaction,
-        aiAnalysis: result
+        aiAnalysis: result,
       };
-
     } catch (error) {
       console.error('AI Error:', error);
       throw new InternalServerErrorException('Failed to process AI request');

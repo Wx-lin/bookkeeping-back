@@ -1,6 +1,13 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateTransactionDto, TransactionType } from './dto/create-transaction.dto';
+import {
+  CreateTransactionDto,
+  TransactionType,
+} from './dto/create-transaction.dto';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -8,7 +15,15 @@ export class TransactionService {
   constructor(private prisma: PrismaService) {}
 
   async create(userId: number, dto: CreateTransactionDto) {
-    const { amount, type, accountId, toAccountId, categoryId, date, description } = dto;
+    const {
+      amount,
+      type,
+      accountId,
+      toAccountId,
+      categoryId,
+      date,
+      description,
+    } = dto;
     const amountDecimal = new Prisma.Decimal(amount);
 
     return this.prisma.$transaction(async (tx) => {
@@ -47,19 +62,21 @@ export class TransactionService {
         if (!toAccountId) {
           throw new BadRequestException('Target account required for transfer');
         }
-        const toAccount = await tx.account.findUnique({ where: { id: toAccountId } });
+        const toAccount = await tx.account.findUnique({
+          where: { id: toAccountId },
+        });
         if (!toAccount || toAccount.userId !== userId) {
           throw new NotFoundException('Target account not found');
         }
 
         data.toAccountId = toAccountId;
-        
+
         // Decrement source
         await tx.account.update({
           where: { id: accountId },
           data: { balance: { decrement: amountDecimal } },
         });
-        
+
         // Increment target
         await tx.account.update({
           where: { id: toAccountId },
@@ -79,12 +96,13 @@ export class TransactionService {
     const where: Prisma.TransactionWhereInput = {
       userId,
       ...(type && { type }),
-      ...(startDate && endDate && {
-        date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      }),
+      ...(startDate &&
+        endDate && {
+          date: {
+            gte: new Date(startDate),
+            lte: new Date(endDate),
+          },
+        }),
     };
 
     const [total, data] = await Promise.all([

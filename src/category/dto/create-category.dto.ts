@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCategoryDto {
@@ -7,7 +7,11 @@ export class CreateCategoryDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: '分类类型', example: 'EXPENSE', enum: ['EXPENSE', 'INCOME', 'TRANSFER'] })
+  @ApiProperty({
+    description: '分类类型',
+    example: 'EXPENSE',
+    enum: ['EXPENSE', 'INCOME', 'TRANSFER'],
+  })
   @IsString()
   @IsNotEmpty()
   type: 'EXPENSE' | 'INCOME' | 'TRANSFER';
@@ -17,4 +21,3 @@ export class CreateCategoryDto {
   @IsOptional()
   icon?: string;
 }
-

@@ -24,7 +24,10 @@ export class TransactionController {
   })
   @ApiResponse({ status: 201, description: '记账成功' })
   @Post()
-  create(@CurrentUser() user: any, @Body() dto: CreateTransactionDto) {
+  create(
+    @CurrentUser() user: { id: number },
+    @Body() dto: CreateTransactionDto,
+  ) {
     return this.transactionService.create(user.id, dto);
   }
 
@@ -65,7 +68,7 @@ export class TransactionController {
   @ApiResponse({ status: 200, description: '返回记账列表' })
   @Get()
   findAll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: { id: number },
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('type') type?: string,

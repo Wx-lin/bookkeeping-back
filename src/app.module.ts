@@ -21,7 +21,7 @@ import { StatsModule } from './stats/stats.module';
     CategoryModule,
     TransactionModule,
     AiModule,
-    StatsModule
+    StatsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
