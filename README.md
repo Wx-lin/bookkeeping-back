@@ -1,25 +1,29 @@
 # Project Name
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 接口文档 http://localhost:3000/api
+
+## 数据表地址 http://localhost:5556/
+
+1. 运行 npm run db:studio
 
 ## Prerequisites (前置条件)
 
-Before you begin, ensure you have met the following requirements:
 (在开始之前，请确保满足以下条件：)
 
-*   **Node.js**: version >= 18 (Recommended: v20 LTS)
-*   **pnpm**: Package manager (install via `npm i -g pnpm`)
-*   **Docker & Docker Compose**: For running the database locally.
+- **Node.js**: version >= 18 (Recommended: v20 LTS)
+- **pnpm**: Package manager (install via `npm i -g pnpm`)
 
 ## Project Setup (项目设置)
 
 1.  **Clone the repository (拉取代码)**
+
     ```bash
     git clone <repository_url>
     cd project-name
     ```
 
 2.  **Install dependencies (安装依赖)**
+
     ```bash
     pnpm install
     ```
@@ -27,20 +31,24 @@ Before you begin, ensure you have met the following requirements:
 3.  **Environment Configuration (环境配置)**
     Copy the example environment file to create your local `.env` file:
     (复制示例配置文件以创建本地 `.env` 文件：)
+
     ```bash
     cp env.example .env
     ```
-    *Note: The default `env.example` contains credentials matching the `docker-compose.yml` setup. Adjust `OPENAI_API_KEY` if you need AI features.*
+
+    _Note: The default `env.example` contains credentials matching the `docker-compose.yml` setup. Adjust `OPENAI_API_KEY` if you need AI features._
 
 4.  **Database Setup (数据库设置)**
     Start the PostgreSQL database using Docker:
     (启动数据库容器：)
+
     ```bash
     docker-compose up -d
     ```
 
     Run database migrations to create tables:
     (运行数据库迁移以创建表结构：)
+
     ```bash
     npx prisma migrate dev
     ```

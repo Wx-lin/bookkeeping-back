@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from '@nestjs/common';
 import { UserService } from '../user/user.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -12,9 +16,11 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const existingUser = await this.userService.user({ email: registerDto.email });
+    const existingUser = await this.userService.user({
+      email: registerDto.email,
+    });
     if (existingUser) {
-      throw new ConflictException('User already exists');
+      throw new ConflictException('该邮箱已被注册');
     }
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
@@ -35,7 +41,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
-      }
+      },
     };
   }
 
