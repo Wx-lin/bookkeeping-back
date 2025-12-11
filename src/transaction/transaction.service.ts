@@ -33,6 +33,23 @@ export class TransactionService {
         throw new NotFoundException('Source account not found');
       }
 
+      if (categoryId) {
+        const category = await tx.category.findUnique({
+          where: { id: categoryId },
+        });
+
+        if (!category) {
+          throw new NotFoundException('Category not found');
+        }
+
+        // 校验分类类型是否与交易类型匹配
+        if (type !== TransactionType.TRANSFER && category.type !== type) {
+          throw new BadRequestException(
+            `分类类型不匹配: 当前交易为 ${type}，但选择了 ${category.type} 类型的分类`,
+          );
+        }
+      }
+
       // 2. Prepare Transaction Data
       const data: Prisma.TransactionCreateInput = {
         amount: amountDecimal,

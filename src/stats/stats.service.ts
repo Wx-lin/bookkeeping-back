@@ -12,7 +12,10 @@ export class StatsService {
       where: { userId },
     });
 
-    const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+    const totalBalance = accounts.reduce(
+      (sum, acc) => sum + Number(acc.balance),
+      0,
+    );
     return {
       totalBalance,
       accounts,
@@ -22,12 +25,13 @@ export class StatsService {
   async getTrend(userId: number, startDate?: string, endDate?: string) {
     const where: Prisma.TransactionWhereInput = {
       userId,
-      ...(startDate && endDate && {
-        date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      }),
+      ...(startDate &&
+        endDate && {
+          date: {
+            gte: new Date(startDate),
+            lte: new Date(endDate),
+          },
+        }),
     };
 
     const transactions = await this.prisma.transaction.findMany({
@@ -37,7 +41,7 @@ export class StatsService {
 
     // Group by date and type
     const trend = {};
-    transactions.forEach(t => {
+    transactions.forEach((t) => {
       const dateStr = t.date.toISOString().split('T')[0];
       if (!trend[dateStr]) {
         trend[dateStr] = { expense: 0, income: 0 };
@@ -51,20 +55,26 @@ export class StatsService {
 
     return Object.entries(trend).map(([date, data]) => ({
       date,
-      ...data as any
+      ...(data as any),
     }));
   }
 
-  async getCategoryStats(userId: number, startDate?: string, endDate?: string) {
+  async getCategoryStats(
+    userId: number,
+    startDate?: string,
+    endDate?: string,
+    type: TransactionType = TransactionType.EXPENSE,
+  ) {
     const where: Prisma.TransactionWhereInput = {
       userId,
-      type: TransactionType.EXPENSE,
-      ...(startDate && endDate && {
-        date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      }),
+      type,
+      ...(startDate &&
+        endDate && {
+          date: {
+            gte: new Date(startDate),
+            lte: new Date(endDate),
+          },
+        }),
     };
 
     const transactions = await this.prisma.transaction.findMany({
@@ -73,17 +83,19 @@ export class StatsService {
     });
 
     const stats = {};
-    transactions.forEach(t => {
-      const catName = t.category?.name || 'Uncategorized';
+    transactions.forEach((t) => {
+      const catName = t.category?.name || '无分类';
       if (!stats[catName]) {
         stats[catName] = 0;
       }
       stats[catName] += Number(t.amount);
     });
 
-    return Object.entries(stats).map(([name, value]) => ({
-      name,
-      value,
-    }));
+    return Object.entries(stats)
+      .map(([name, value]) => ({
+        name,
+        value,
+      }))
+      .sort((a, b) => (b.value as number) - (a.value as number));
   }
 }

@@ -9,6 +9,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
+import { TransactionType } from '../transaction/dto/create-transaction.dto';
 
 @ApiTags('统计报表')
 @ApiBearerAuth()
@@ -65,13 +66,25 @@ export class StatsController {
     required: false,
     description: '结束日期 (YYYY-MM-DD)',
   })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: TransactionType,
+    description: '统计类型 (EXPENSE/INCOME)，默认为 EXPENSE',
+  })
   @ApiResponse({ status: 200, description: '返回分类统计数据' })
   @Get('category')
   getCategoryStats(
     @CurrentUser() user: { id: number },
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('type') type?: TransactionType,
   ) {
-    return this.statsService.getCategoryStats(user.id, startDate, endDate);
+    return this.statsService.getCategoryStats(
+      user.id,
+      startDate,
+      endDate,
+      type || TransactionType.EXPENSE,
+    );
   }
 }
