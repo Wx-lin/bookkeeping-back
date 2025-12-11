@@ -11,18 +11,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private userService: UserService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromHeader('token'),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'super-secret-key',
+      secretOrKey:
+        configService.get<string>('JWT_SECRET') || 'super-secret-key',
     });
   }
 
   async validate(payload: any) {
     const user = await this.userService.user({ id: payload.sub });
     if (!user) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('用户不存在或登录已失效');
     }
     return user;
   }
 }
-

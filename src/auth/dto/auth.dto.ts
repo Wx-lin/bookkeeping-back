@@ -7,7 +7,11 @@ export class RegisterDto {
   @IsNotEmpty({ message: '邮箱不能为空' })
   email: string;
 
-  @ApiProperty({ description: '密码 (至少6位)', example: 'password123', minLength: 6 })
+  @ApiProperty({
+    description: '密码 (至少6位)',
+    example: 'password123',
+    minLength: 6,
+  })
   @IsString({ message: '密码必须是字符串' })
   @IsNotEmpty({ message: '密码不能为空' })
   @MinLength(6, { message: '密码长度不能少于6位' })
@@ -30,4 +34,3 @@ export class LoginDto {
   @IsNotEmpty({ message: '密码不能为空' })
   password: string;
 }
-

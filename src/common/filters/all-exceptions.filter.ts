@@ -42,6 +42,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     }
 
+    // 强制翻译常见的英文错误信息，作为最后一道防线
+    if (
+      status === HttpStatus.UNAUTHORIZED &&
+      (message === 'Unauthorized' || message === 'error')
+    ) {
+      message = '请先登录或登录已过期';
+    }
+
+    // 也可以处理 Forbidden
+    if (status === HttpStatus.FORBIDDEN && message === 'Forbidden resource') {
+      message = '无权访问此资源';
+    }
+
     response.status(status).json({
       status,
       message,

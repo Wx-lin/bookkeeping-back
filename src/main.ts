@@ -14,7 +14,15 @@ async function bootstrap() {
     .setTitle('智能记账系统 API')
     .setDescription('提供记账、统计、AI 助手等功能的 RESTful API 文档')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'token',
+        in: 'header',
+        description: '直接输入 Token，无需 Bearer 前缀',
+      },
+      'token',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
 

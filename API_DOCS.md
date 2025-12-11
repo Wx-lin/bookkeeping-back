@@ -16,7 +16,7 @@ curl --location 'http://localhost:3000/auth/signup' \
 
 ### 登录 (Login)
 **POST** `/auth/login`
-> **注意**: 请复制响应中的 `access_token`，在后续所有请求的 Header 中添加 `Authorization: Bearer <TOKEN>`
+> **注意**: 请复制响应中的 `access_token`，在后续所有请求的 Header 中添加 `token: <TOKEN>`
 ```bash
 curl --location 'http://localhost:3000/auth/login' \
 --header 'Content-Type: application/json' \
@@ -35,7 +35,7 @@ curl --location 'http://localhost:3000/auth/login' \
 ```bash
 curl --location 'http://localhost:3000/accounts' \
 --header 'Content-Type: application/json' \
---header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+--header 'token: <YOUR_ACCESS_TOKEN>' \
 --data '{
     "name": "招商银行",
     "type": "Bank Card",
@@ -47,7 +47,7 @@ curl --location 'http://localhost:3000/accounts' \
 **GET** `/accounts`
 ```bash
 curl --location 'http://localhost:3000/accounts' \
---header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+--header 'token: <YOUR_ACCESS_TOKEN>'
 ```
 
 ### 创建分类 (Create Category)
@@ -55,7 +55,7 @@ curl --location 'http://localhost:3000/accounts' \
 ```bash
 curl --location 'http://localhost:3000/categories' \
 --header 'Content-Type: application/json' \
---header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+--header 'token: <YOUR_ACCESS_TOKEN>' \
 --data '{
     "name": "餐饮",
     "type": "EXPENSE",
@@ -72,7 +72,7 @@ curl --location 'http://localhost:3000/categories' \
 ```bash
 curl --location 'http://localhost:3000/transactions' \
 --header 'Content-Type: application/json' \
---header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+--header 'token: <YOUR_ACCESS_TOKEN>' \
 --data '{
     "amount": 50,
     "type": "EXPENSE",
@@ -89,7 +89,7 @@ curl --location 'http://localhost:3000/transactions' \
 ```bash
 curl --location 'http://localhost:3000/ai/chat' \
 --header 'Content-Type: application/json' \
---header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+--header 'token: <YOUR_ACCESS_TOKEN>' \
 --data '{
     "text": "刚用招商银行卡付了房租3000元"
 }'
@@ -103,20 +103,20 @@ curl --location 'http://localhost:3000/ai/chat' \
 **GET** `/stats/assets`
 ```bash
 curl --location 'http://localhost:3000/stats/assets' \
---header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+--header 'token: <YOUR_ACCESS_TOKEN>'
 ```
 
 ### 收支趋势 (Trend)
 **GET** `/stats/trend`
 ```bash
 curl --location 'http://localhost:3000/stats/trend?startDate=2023-01-01&endDate=2023-12-31' \
---header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+--header 'token: <YOUR_ACCESS_TOKEN>'
 ```
 
 ### 分类统计 (Category Stats)
 **GET** `/stats/category`
 ```bash
 curl --location 'http://localhost:3000/stats/category?startDate=2023-01-01&endDate=2023-12-31' \
---header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+--header 'token: <YOUR_ACCESS_TOKEN>'
 ```
 
