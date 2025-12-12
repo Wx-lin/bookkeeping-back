@@ -23,6 +23,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('用户不存在或登录已失效');
     }
-    return user;
+    // 避免把敏感字段挂到 request.user 上
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, ...safeUser } = user as any;
+    return safeUser;
   }
 }

@@ -1,7 +1,16 @@
-import { Controller, Post, Body, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UnauthorizedException,
+  Get,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { CurrentUser } from './current-user.decorator';
 
 @ApiTags('认证')
 @Controller('auth')
@@ -31,5 +40,26 @@ export class AuthController {
       throw new UnauthorizedException('邮箱或密码错误');
     }
     return this.authService.login(user);
+  }
+
+  @ApiOperation({
+    summary: '获取当前用户信息',
+    description: '需要在请求头 token 中携带登录后返回的 Token',
+  })
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: '返回当前用户信息' })
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  me(@CurrentUser() user: any) {
+    // JwtStrategy.validate 已去除 password，这里直接返回即可
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      description: user.description,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   }
 }
