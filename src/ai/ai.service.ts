@@ -60,6 +60,22 @@ export class AiService {
     this.extendedPrisma = this.prisma as unknown as ExtendedPrismaService;
   }
 
+  // 工具方法：格式化日期为北京时间字符串
+  private formatChineseDate(date: Date): string {
+    return new Intl.DateTimeFormat('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Shanghai',
+    })
+      .format(date)
+      .replace(/-/g, '/'); // 将 2025-12-31 替换为 2025/12/31
+  }
+
   // 获取聊天记录
   async getHistory(userId: number, limit: number, offset: number) {
     const messages = await this.extendedPrisma.chatMessage.findMany({
@@ -83,7 +99,7 @@ export class AiService {
                 : null,
             }
           : null,
-        createdAt: msg.createdAt,
+        createdAt: this.formatChineseDate(msg.createdAt),
       })),
       total: await this.extendedPrisma.chatMessage.count({ where: { userId } }),
     };
@@ -107,7 +123,7 @@ export class AiService {
     当前用户信息:
     - 账户: ${accountContext}
     - 分类: ${categoryContext}
-    - 时间: ${new Date().toISOString()}
+    - 时间: ${this.formatChineseDate(new Date())}
 
     能力:
     1. 如果用户想要记账，请提取信息并调用 'create_transaction' 工具。
