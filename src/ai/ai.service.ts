@@ -5,6 +5,27 @@ import { AccountService } from '../account/account.service';
 import { CategoryService } from '../category/category.service';
 import { TransactionService } from '../transaction/transaction.service';
 import { CreateTransactionDto } from '../transaction/dto/create-transaction.dto';
+import { PrismaService } from '../prisma/prisma.service';
+
+// 定义卡片类型枚举
+export enum CardType {
+  TRANSACTION_CONFIRM = 'transaction_confirm',
+}
+
+import { Stream } from 'openai/streaming';
+import { ChatCompletionChunk } from 'openai/resources/chat/completions';
+import { Account, Category } from '@prisma/client';
+
+interface ChatMessage {
+  id: number;
+  userId: number;
+  role: string;
+  content: string;
+  hasCard: boolean;
+  cardType: string | null;
+  cardData: string | null;
+  createdAt: Date;
+}
 
 @Injectable()
 export class AiService {
@@ -15,16 +36,49 @@ export class AiService {
     private accountService: AccountService,
     private categoryService: CategoryService,
     private transactionService: TransactionService,
+    private prisma: PrismaService,
   ) {
     this.openai = new OpenAI({
       apiKey:
         this.configService.get<string>('OPENAI_API_KEY') ||
         'dummy-key-for-local-dev',
+      baseURL:
+        this.configService.get<string>('OPENAI_BASE_URL') ||
+        'https://api.openai.com/v1',
     });
   }
 
-  async chat(userId: number, text: string) {
-    // 1. Fetch context
+  // 获取聊天记录
+  async getHistory(userId: number, limit: number, offset: number) {
+    const prisma = this.prisma as any;
+    const messages = (await prisma.chatMessage.findMany({
+      where: { userId },
+      take: limit,
+      skip: offset,
+      orderBy: { createdAt: 'desc' },
+    })) as ChatMessage[];
+
+    // 格式化返回（倒序取出来，前端可能需要正序展示，或者前端自己 reverse）
+    return {
+      items: messages.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        card: msg.hasCard
+          ? {
+              type: msg.cardType,
+              data: msg.cardData ? JSON.parse(msg.cardData) : null,
+            }
+          : null,
+        createdAt: msg.createdAt,
+      })),
+      total: await prisma.chatMessage.count({ where: { userId } }),
+    };
+  }
+
+  // 流式对话接口
+  async chatStream(userId: number, text: string) {
+    // 1. 获取上下文
     const accounts = await this.accountService.findAll(userId);
     const categories = await this.categoryService.findAll(userId);
 
@@ -35,77 +89,182 @@ export class AiService {
       .map((c) => `${c.name} (ID: ${c.id}, Type: ${c.type})`)
       .join(', ');
 
-    // 2. Build Prompt
-    const prompt = `
-    请分析以下财务交易文本，并提取关键信息输出为 JSON 对象。
-    
-    上下文信息:
-    - 用户账户列表: ${accountContext}
-    - 消费分类列表: ${categoryContext}
-    - 当前时间: ${new Date().toISOString()}
-    
-    交易文本: "${text}"
-    
-    请严格按照以下 JSON 格式输出:
-    {
-      "amount": number,
-      "type": "EXPENSE" (支出) | "INCOME" (收入) | "TRANSFER" (转账),
-      "accountId": number, // 来源账户ID。如果未指定，请根据语境推断或默认使用第一个账户。
-      "categoryId": number, // 分类ID (支出/收入必填)。
-      "toAccountId": number, // 目标账户ID (转账必填)。
-      "date": string, // ISO 日期字符串。如果未指定，使用当前时间。
-      "description": string // 交易简短描述。
-    }
-    
-    规则:
-    1. 如果文本中提到了账户或分类名称，请映射到对应的 ID。
-    2. 支持模糊匹配，选择最接近的选项。
-    3. 如果是转账，"accountId" 是转出账户，"toAccountId" 是转入账户。
-    4. 仅返回 JSON 对象，不要包含 markdown 格式化标记 (如 \`\`\`json)。
+    const systemPrompt = `
+    你是一个智能记账助手。
+    当前用户信息:
+    - 账户: ${accountContext}
+    - 分类: ${categoryContext}
+    - 时间: ${new Date().toISOString()}
+
+    能力:
+    1. 如果用户想要记账，请提取信息并调用 'create_transaction' 工具。
+    2. 如果用户只是闲聊或咨询，请直接用文本回复。
+    3. 如果信息不全（如没说金额），请追问用户。
     `;
 
+    // 2. 保存用户消息到数据库
+    const prisma = this.prisma as any;
+    await prisma.chatMessage.create({
+      data: { userId, role: 'user', content: text },
+    });
+
     try {
-      // 3. Call AI
-      const completion = await this.openai.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
+      // 3. 调用 AI (Stream Mode)
+      const stream = await this.openai.chat.completions.create({
         model:
           this.configService.get<string>('OPENAI_MODEL_NAME') ||
           'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text },
+        ],
+        stream: true,
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'create_transaction',
+              description: '创建一笔交易记录',
+              parameters: {
+                type: 'object',
+                properties: {
+                  amount: { type: 'number', description: '金额' },
+                  type: {
+                    type: 'string',
+                    enum: ['EXPENSE', 'INCOME', 'TRANSFER'],
+                    description: '交易类型',
+                  },
+                  accountId: { type: 'number', description: '账户ID' },
+                  categoryId: { type: 'number', description: '分类ID' },
+                  toAccountId: {
+                    type: 'number',
+                    description: '转入账户ID (仅转账需要)',
+                  },
+                  date: { type: 'string', description: '日期 ISO 格式' },
+                  description: { type: 'string', description: '描述' },
+                },
+                required: ['amount', 'type'],
+              },
+            },
+          },
+        ],
       });
 
-      const content = completion.choices[0].message.content;
-      if (!content) {
-        throw new InternalServerErrorException('AI returned empty response');
-      }
-      // Clean up potential markdown code blocks
-      const cleanContent = content
-        .replace(/```json/g, '')
-        .replace(/```/g, '')
-        .trim();
-
-      const result = JSON.parse(cleanContent) as CreateTransactionDto;
-
-      // 4. Create Transaction
-      // Basic validation or fallback if AI misses ID
-      if (!result.accountId && accounts.length > 0) {
-        result.accountId = accounts[0].id;
-      }
-
-      const transaction = await this.transactionService.create(userId, result);
-
-      return {
-        message: 'Transaction recorded successfully',
-        transaction,
-        aiAnalysis: result,
-      };
+      return this.handleStream(stream, userId, accounts, categories);
     } catch (error) {
-      console.error('AI Processing Error:', error);
-      if (error instanceof InternalServerErrorException) {
-        throw error;
+      console.error('AI Stream Error:', error);
+      throw new InternalServerErrorException('AI Service Unavailable');
+    }
+  }
+
+  // 处理流式响应
+  private async *handleStream(
+    stream: Stream<ChatCompletionChunk>,
+    userId: number,
+    accounts: Account[],
+    categories: Category[],
+  ) {
+    let fullContent = '';
+    let toolCallName = '';
+    let toolCallArgs = '';
+    let isToolCalling = false;
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta;
+
+      // Case A: 普通文本流
+      if (delta?.content) {
+        fullContent += delta.content;
+        yield { type: 'text', content: delta.content };
       }
-      throw new InternalServerErrorException(
-        `Failed to process AI request: ${(error as Error).message}`,
-      );
+
+      // Case B: 工具调用 (Function Calling)
+      if (delta?.tool_calls) {
+        isToolCalling = true;
+        const toolCall = delta.tool_calls[0];
+        if (toolCall.function?.name) toolCallName = toolCall.function.name;
+        if (toolCall.function?.arguments)
+          toolCallArgs += toolCall.function.arguments;
+      }
+    }
+
+    // 流结束后，处理结果
+    if (isToolCalling && toolCallName === 'create_transaction') {
+      // 1. 解析参数
+      let args: CreateTransactionDto;
+      try {
+        args = JSON.parse(toolCallArgs);
+      } catch (e) {
+        yield { type: 'error', content: '无法解析交易信息' };
+        return;
+      }
+
+      // 2. 兜底逻辑 (填充默认 ID)
+      if (!args.accountId) {
+        if (accounts.length > 0) {
+          args.accountId = accounts[0].id;
+        } else {
+          yield {
+            type: 'text',
+            content: '您还没有创建账户，无法记账。请先创建账户。',
+          };
+          return;
+        }
+      }
+      if (!args.date) args.date = new Date().toISOString();
+
+      // 3. 执行记账
+      try {
+        const transaction = await this.transactionService.create(userId, args);
+
+        // 4. 构建卡片数据
+        const category = categories.find(
+          (c) => c.id === transaction.categoryId,
+        );
+        const account = accounts.find((a) => a.id === transaction.accountId);
+
+        const cardData = {
+          transactionId: transaction.id,
+          amount: transaction.amount,
+          type: transaction.type,
+          categoryName: category?.name || '未知分类',
+          accountName: account?.name || '未知账户',
+          date: transaction.date,
+          description: transaction.description,
+          status: 'saved',
+        };
+
+        // 5. 保存 AI 回复到数据库 (带卡片)
+        const prisma = this.prisma as any;
+        await prisma.chatMessage.create({
+          data: {
+            userId,
+            role: 'assistant',
+            content: '已为您记账', // 简短文本
+            hasCard: true,
+            cardType: CardType.TRANSACTION_CONFIRM,
+            cardData: JSON.stringify(cardData),
+          },
+        });
+
+        // 6. 推送卡片给前端
+        yield {
+          type: 'card',
+          cardType: CardType.TRANSACTION_CONFIRM,
+          data: cardData,
+        };
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+        yield { type: 'text', content: `记账失败: ${errorMessage}` };
+      }
+    } else {
+      // 普通对话，保存到数据库
+      if (fullContent) {
+        const prisma = this.prisma as any;
+        await prisma.chatMessage.create({
+          data: { userId, role: 'assistant', content: fullContent },
+        });
+      }
     }
   }
 }

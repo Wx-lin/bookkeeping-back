@@ -8,6 +8,7 @@ import {
   CreateTransactionDto,
   TransactionType,
 } from './dto/create-transaction.dto';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -43,7 +44,10 @@ export class TransactionService {
         }
 
         // 校验分类类型是否与交易类型匹配
-        if (type !== TransactionType.TRANSFER && category.type !== type) {
+        if (
+          type !== TransactionType.TRANSFER &&
+          category.type !== (type as string)
+        ) {
           throw new BadRequestException(
             `分类类型不匹配: 当前交易为 ${type}，但选择了 ${category.type} 类型的分类`,
           );
@@ -106,18 +110,19 @@ export class TransactionService {
     });
   }
 
-  async findAll(userId: number, query: any) {
+  async findAll(userId: number, query: Record<string, any>) {
     const { page = 1, limit = 20, type, startDate, endDate } = query;
-    const skip = (page - 1) * limit;
+    const skip = (Number(page) - 1) * Number(limit);
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const where: Prisma.TransactionWhereInput = {
       userId,
-      ...(type && { type }),
+      ...(type && { type: String(type) }),
       ...(startDate &&
         endDate && {
           date: {
-            gte: new Date(startDate),
-            lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+            gte: new Date(String(startDate)),
+            lte: new Date(new Date(String(endDate)).setHours(23, 59, 59, 999)),
           },
         }),
     };
@@ -145,5 +150,124 @@ export class TransactionService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async update(id: number, userId: number, dto: UpdateTransactionDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const oldTransaction = await tx.transaction.findUnique({
+        where: { id },
+      });
+
+      if (!oldTransaction || oldTransaction.userId !== userId) {
+        throw new NotFoundException('Transaction not found');
+      }
+
+      // 1. Revert old balance
+      const oldAmount = new Prisma.Decimal(oldTransaction.amount);
+      const oldType = oldTransaction.type as TransactionType;
+
+      if (oldType === TransactionType.EXPENSE) {
+        await tx.account.update({
+          where: { id: oldTransaction.accountId },
+          data: { balance: { increment: oldAmount } },
+        });
+      } else if (oldType === TransactionType.INCOME) {
+        await tx.account.update({
+          where: { id: oldTransaction.accountId },
+          data: { balance: { decrement: oldAmount } },
+        });
+      } else if (oldType === TransactionType.TRANSFER) {
+        await tx.account.update({
+          where: { id: oldTransaction.accountId },
+          data: { balance: { increment: oldAmount } },
+        });
+        if (oldTransaction.toAccountId) {
+          await tx.account.update({
+            where: { id: oldTransaction.toAccountId },
+            data: { balance: { decrement: oldAmount } },
+          });
+        }
+      }
+
+      // 2. Apply new balance
+      const newType = dto.type || oldType;
+      const newAmount = dto.amount ? new Prisma.Decimal(dto.amount) : oldAmount;
+      const newAccountId = dto.accountId || oldTransaction.accountId;
+      const newToAccountId = dto.toAccountId || oldTransaction.toAccountId;
+
+      if (newType === TransactionType.EXPENSE) {
+        await tx.account.update({
+          where: { id: newAccountId },
+          data: { balance: { decrement: newAmount } },
+        });
+      } else if (newType === TransactionType.INCOME) {
+        await tx.account.update({
+          where: { id: newAccountId },
+          data: { balance: { increment: newAmount } },
+        });
+      } else if (newType === TransactionType.TRANSFER) {
+        if (!newToAccountId)
+          throw new BadRequestException('Transfer needs target account');
+        await tx.account.update({
+          where: { id: newAccountId },
+          data: { balance: { decrement: newAmount } },
+        });
+        await tx.account.update({
+          where: { id: newToAccountId },
+          data: { balance: { increment: newAmount } },
+        });
+      }
+
+      // 3. Update Transaction Record
+      return tx.transaction.update({
+        where: { id },
+        data: {
+          ...dto,
+          date: dto.date ? new Date(dto.date) : undefined,
+        },
+      });
+    });
+  }
+
+  async remove(id: number, userId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const transaction = await tx.transaction.findUnique({
+        where: { id },
+      });
+
+      if (!transaction || transaction.userId !== userId) {
+        throw new NotFoundException('Transaction not found');
+      }
+
+      // Revert balance
+      const amount = new Prisma.Decimal(transaction.amount);
+      const type = transaction.type as TransactionType;
+
+      if (type === TransactionType.EXPENSE) {
+        await tx.account.update({
+          where: { id: transaction.accountId },
+          data: { balance: { increment: amount } }, // Revert expense (add back)
+        });
+      } else if (type === TransactionType.INCOME) {
+        await tx.account.update({
+          where: { id: transaction.accountId },
+          data: { balance: { decrement: amount } }, // Revert income (subtract)
+        });
+      } else if (type === TransactionType.TRANSFER) {
+        // Revert transfer: Add to source, subtract from target
+        await tx.account.update({
+          where: { id: transaction.accountId },
+          data: { balance: { increment: amount } },
+        });
+        if (transaction.toAccountId) {
+          await tx.account.update({
+            where: { id: transaction.toAccountId },
+            data: { balance: { decrement: amount } },
+          });
+        }
+      }
+
+      return tx.transaction.delete({ where: { id } });
+    });
   }
 }

@@ -1,6 +1,17 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  UseGuards,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import {
@@ -82,5 +93,23 @@ export class TransactionController {
       startDate,
       endDate,
     });
+  }
+
+  @ApiOperation({ summary: '修改记账', description: '修改已有的记账记录' })
+  @ApiResponse({ status: 200, description: '修改成功' })
+  @Patch(':id')
+  update(
+    @CurrentUser() user: { id: number },
+    @Param('id') id: string,
+    @Body() dto: UpdateTransactionDto,
+  ) {
+    return this.transactionService.update(+id, user.id, dto);
+  }
+
+  @ApiOperation({ summary: '删除记账', description: '删除记账记录并回滚余额' })
+  @ApiResponse({ status: 200, description: '删除成功' })
+  @Delete(':id')
+  remove(@CurrentUser() user: { id: number }, @Param('id') id: string) {
+    return this.transactionService.remove(+id, user.id);
   }
 }
