@@ -1,4 +1,5 @@
 import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { User } from '@prisma/client';
 import { AiService } from './ai.service';
 import { ChatDto } from './dto/chat.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -23,7 +24,7 @@ export class AiController {
   })
   @ApiResponse({ status: 201, description: '解析成功并记账', type: String })
   @Post('chat')
-  chat(@CurrentUser() user: any, @Body() dto: ChatDto) {
+  chat(@CurrentUser() user: User, @Body() dto: ChatDto) {
     return this.aiService.chat(user.id, dto.text);
   }
 }

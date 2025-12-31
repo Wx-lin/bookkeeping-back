@@ -37,38 +37,40 @@ export class AiService {
 
     // 2. Build Prompt
     const prompt = `
-    Analyze the following financial transaction text and extract the details into a JSON object.
+    请分析以下财务交易文本，并提取关键信息输出为 JSON 对象。
     
-    Context:
-    - User's Accounts: ${accountContext}
-    - Categories: ${categoryContext}
-    - Current Date: ${new Date().toISOString()}
+    上下文信息:
+    - 用户账户列表: ${accountContext}
+    - 消费分类列表: ${categoryContext}
+    - 当前时间: ${new Date().toISOString()}
     
-    Text: "${text}"
+    交易文本: "${text}"
     
-    Output JSON format:
+    请严格按照以下 JSON 格式输出:
     {
       "amount": number,
-      "type": "EXPENSE" | "INCOME" | "TRANSFER",
-      "accountId": number, // The ID of the source account. If not specified, infer the most likely one or default to the first one.
-      "categoryId": number, // Optional, for expense/income.
-      "toAccountId": number, // Required for TRANSFER.
-      "date": string, // ISO date string. If not specified, use current date.
-      "description": string // Brief description of the transaction.
+      "type": "EXPENSE" (支出) | "INCOME" (收入) | "TRANSFER" (转账),
+      "accountId": number, // 来源账户ID。如果未指定，请根据语境推断或默认使用第一个账户。
+      "categoryId": number, // 分类ID (支出/收入必填)。
+      "toAccountId": number, // 目标账户ID (转账必填)。
+      "date": string, // ISO 日期字符串。如果未指定，使用当前时间。
+      "description": string // 交易简短描述。
     }
     
-    Rules:
-    - If account or category is mentioned by name, map to the corresponding ID.
-    - If fuzzy match, pick the closest.
-    - If transfer, source account is "accountId" and destination is "toAccountId".
-    - Only return the JSON object, no markdown formatting.
+    规则:
+    1. 如果文本中提到了账户或分类名称，请映射到对应的 ID。
+    2. 支持模糊匹配，选择最接近的选项。
+    3. 如果是转账，"accountId" 是转出账户，"toAccountId" 是转入账户。
+    4. 仅返回 JSON 对象，不要包含 markdown 格式化标记 (如 \`\`\`json)。
     `;
 
     try {
-      // 3. Call OpenAI
+      // 3. Call AI
       const completion = await this.openai.chat.completions.create({
         messages: [{ role: 'user', content: prompt }],
-        model: 'gpt-3.5-turbo', // Or gpt-4
+        model:
+          this.configService.get<string>('OPENAI_MODEL_NAME') ||
+          'gpt-3.5-turbo',
       });
 
       const content = completion.choices[0].message.content;
@@ -97,8 +99,13 @@ export class AiService {
         aiAnalysis: result,
       };
     } catch (error) {
-      console.error('AI Error:', error);
-      throw new InternalServerErrorException('Failed to process AI request');
+      console.error('AI Processing Error:', error);
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Failed to process AI request: ${(error as Error).message}`,
+      );
     }
   }
 }
