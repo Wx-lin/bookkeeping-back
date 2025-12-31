@@ -16,6 +16,7 @@ import { Stream } from 'openai/streaming';
 import { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import { Account, Category } from '@prisma/client';
 
+// 临时定义 ChatMessage 类型，直到 Prisma 类型同步
 interface ChatMessage {
   id: number;
   userId: number;
@@ -27,9 +28,19 @@ interface ChatMessage {
   createdAt: Date;
 }
 
+// 定义包含 chatMessage 的 Prisma 类型以修复 TS 报错
+type ExtendedPrismaService = PrismaService & {
+  chatMessage: {
+    findMany: (args: any) => Promise<ChatMessage[]>;
+    count: (args: any) => Promise<number>;
+    create: (args: any) => Promise<ChatMessage>;
+  };
+};
+
 @Injectable()
 export class AiService {
   private openai: OpenAI;
+  private extendedPrisma: ExtendedPrismaService;
 
   constructor(
     private configService: ConfigService,
@@ -46,17 +57,17 @@ export class AiService {
         this.configService.get<string>('OPENAI_BASE_URL') ||
         'https://api.openai.com/v1',
     });
+    this.extendedPrisma = this.prisma as unknown as ExtendedPrismaService;
   }
 
   // 获取聊天记录
   async getHistory(userId: number, limit: number, offset: number) {
-    const prisma = this.prisma as any;
-    const messages = (await prisma.chatMessage.findMany({
+    const messages = await this.extendedPrisma.chatMessage.findMany({
       where: { userId },
       take: limit,
       skip: offset,
       orderBy: { createdAt: 'desc' },
-    })) as ChatMessage[];
+    });
 
     // 格式化返回（倒序取出来，前端可能需要正序展示，或者前端自己 reverse）
     return {
@@ -67,12 +78,14 @@ export class AiService {
         card: msg.hasCard
           ? {
               type: msg.cardType,
-              data: msg.cardData ? JSON.parse(msg.cardData) : null,
+              data: msg.cardData
+                ? (JSON.parse(msg.cardData) as Record<string, any>)
+                : null,
             }
           : null,
         createdAt: msg.createdAt,
       })),
-      total: await prisma.chatMessage.count({ where: { userId } }),
+      total: await this.extendedPrisma.chatMessage.count({ where: { userId } }),
     };
   }
 
@@ -102,22 +115,36 @@ export class AiService {
     3. 如果信息不全（如没说金额），请追问用户。
     `;
 
-    // 2. 保存用户消息到数据库
-    const prisma = this.prisma as any;
-    await prisma.chatMessage.create({
+    // 2. 获取最近历史记录
+    const history = await this.extendedPrisma.chatMessage.findMany({
+      where: { userId },
+      take: 10, // 取最近10条
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // 3. 构建消息列表 (System + History + User)
+    // 历史记录需要倒序（因为查出来是倒序，对话需要正序）
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      ...history.reverse().map((msg) => ({
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content,
+      })),
+      { role: 'user', content: text },
+    ];
+
+    // 4. 保存用户消息到数据库
+    await this.extendedPrisma.chatMessage.create({
       data: { userId, role: 'user', content: text },
     });
 
     try {
-      // 3. 调用 AI (Stream Mode)
+      // 5. 调用 AI (Stream Mode)
       const stream = await this.openai.chat.completions.create({
         model:
           this.configService.get<string>('OPENAI_MODEL_NAME') ||
           'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text },
-        ],
+        messages,
         stream: true,
         tools: [
           {
@@ -193,8 +220,9 @@ export class AiService {
       // 1. 解析参数
       let args: CreateTransactionDto;
       try {
-        args = JSON.parse(toolCallArgs);
-      } catch (e) {
+        args = JSON.parse(toolCallArgs) as CreateTransactionDto;
+      } catch (error) {
+        console.error('Parse Tool Args Error:', error);
         yield { type: 'error', content: '无法解析交易信息' };
         return;
       }
@@ -235,8 +263,7 @@ export class AiService {
         };
 
         // 5. 保存 AI 回复到数据库 (带卡片)
-        const prisma = this.prisma as any;
-        await prisma.chatMessage.create({
+        await this.extendedPrisma.chatMessage.create({
           data: {
             userId,
             role: 'assistant',
@@ -253,15 +280,15 @@ export class AiService {
           cardType: CardType.TRANSACTION_CONFIRM,
           data: cardData,
         };
-      } catch (e) {
-        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
         yield { type: 'text', content: `记账失败: ${errorMessage}` };
       }
     } else {
       // 普通对话，保存到数据库
       if (fullContent) {
-        const prisma = this.prisma as any;
-        await prisma.chatMessage.create({
+        await this.extendedPrisma.chatMessage.create({
           data: { userId, role: 'assistant', content: fullContent },
         });
       }
