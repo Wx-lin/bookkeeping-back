@@ -16,7 +16,7 @@ curl --location 'http://localhost:3000/auth/signup' \
 
 ### 登录 (Login)
 **POST** `/auth/login`
-> **注意**: 请复制响应中的 `access_token`，在后续所有请求的 Header 中添加 `token: <TOKEN>`
+> **注意**: 请复制响应中的 `token`，在后续所有请求的 Header 中添加 `token: <TOKEN>`
 ```bash
 curl --location 'http://localhost:3000/auth/login' \
 --header 'Content-Type: application/json' \

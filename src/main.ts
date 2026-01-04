@@ -4,7 +4,6 @@ import { ValidationPipe } from '@nestjs/common';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { apiReference } from '@scalar/nestjs-api-reference';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -27,14 +26,15 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
 
   // 使用 Scalar 替代默认的 Swagger UI
-  app.use(
-    '/api',
-    apiReference({
-      content: document,
-      theme: 'purple', // 可选主题: 'purple', 'moon', 'solar', 'bluePlanet', 'saturn'
-      darkMode: true,
-    }),
-  );
+  // app.use(
+  //   '/api',
+  //   apiReference({
+  //     content: document,
+  //     theme: 'purple', // 可选主题: 'purple', 'moon', 'solar', 'bluePlanet', 'saturn'
+  //     darkMode: true,
+  //   }),
+  // );
+  SwaggerModule.setup('api', app, document);
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalInterceptors(new TransformInterceptor());

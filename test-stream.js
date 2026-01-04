@@ -22,12 +22,12 @@ async function main() {
     const loginData = await loginRes.json();
     console.log('Login response:', loginData); // Debug print
 
-    // Check if the structure is { data: { access_token: ... } } or just { access_token: ... }
+    // Check if the structure is { data: { token: ... } } or just { token: ... }
     const token =
-      loginData.access_token || (loginData.data && loginData.data.access_token);
+      loginData.token || (loginData.data && loginData.data.token);
 
     if (!token) {
-      throw new Error('No access_token in login response');
+      throw new Error('No token in login response');
     }
     console.log('Login successful, token:', token.substring(0, 20) + '...');
 
