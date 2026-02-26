@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionType } from '../transaction/dto/create-transaction.dto';
 import { Prisma } from '@prisma/client';
@@ -7,10 +7,20 @@ import { Prisma } from '@prisma/client';
 export class StatsService {
   constructor(private prisma: PrismaService) {}
 
-  async getAssetsOverview(userId: number) {
-    const accounts = await this.prisma.account.findMany({
-      where: { userId },
-    });
+  async getAssetsOverview(userId: number, ledgerId?: number) {
+    const where: any = { userId };
+    if (ledgerId) {
+      // Verify ledger belongs to user
+      const ledger = await this.prisma.ledger.findFirst({
+        where: { id: ledgerId, userId },
+      });
+      if (!ledger) {
+        throw new ForbiddenException('账本不存在或无权限');
+      }
+      where.ledgerId = ledgerId;
+    }
+
+    const accounts = await this.prisma.account.findMany({ where });
 
     const totalBalance = accounts.reduce(
       (sum, acc) => sum + Number(acc.balance),
@@ -22,9 +32,10 @@ export class StatsService {
     };
   }
 
-  async getTrend(userId: number, startDate?: string, endDate?: string) {
+  async getTrend(userId: number, startDate?: string, endDate?: string, ledgerId?: number) {
     const where: Prisma.TransactionWhereInput = {
       userId,
+      ...(ledgerId && { ledgerId }),
       ...(startDate &&
         endDate && {
           date: {
@@ -33,6 +44,16 @@ export class StatsService {
           },
         }),
     };
+
+    // Validate ledger if provided
+    if (ledgerId) {
+      const ledger = await this.prisma.ledger.findFirst({
+        where: { id: ledgerId, userId },
+      });
+      if (!ledger) {
+        throw new ForbiddenException('账本不存在或无权限');
+      }
+    }
 
     const transactions = await this.prisma.transaction.findMany({
       where,
@@ -64,10 +85,12 @@ export class StatsService {
     startDate?: string,
     endDate?: string,
     type: TransactionType = TransactionType.EXPENSE,
+    ledgerId?: number,
   ) {
     const where: Prisma.TransactionWhereInput = {
       userId,
       type,
+      ...(ledgerId && { ledgerId }),
       ...(startDate &&
         endDate && {
           date: {
@@ -76,6 +99,16 @@ export class StatsService {
           },
         }),
     };
+
+    // Validate ledger if provided
+    if (ledgerId) {
+      const ledger = await this.prisma.ledger.findFirst({
+        where: { id: ledgerId, userId },
+      });
+      if (!ledger) {
+        throw new ForbiddenException('账本不存在或无权限');
+      }
+    }
 
     const transactions = await this.prisma.transaction.findMany({
       where,

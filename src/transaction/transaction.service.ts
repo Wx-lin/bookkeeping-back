@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -19,6 +20,7 @@ export class TransactionService {
     const {
       amount,
       type,
+      ledgerId,
       accountId,
       toAccountId,
       categoryId,
@@ -28,19 +30,29 @@ export class TransactionService {
     const amountDecimal = new Prisma.Decimal(amount);
 
     return this.prisma.$transaction(async (tx) => {
-      // 1. Validate Account
-      const account = await tx.account.findUnique({ where: { id: accountId } });
-      if (!account || account.userId !== userId) {
-        throw new NotFoundException('Source account not found');
+      // 1. Validate Ledger belongs to user
+      const ledger = await tx.ledger.findFirst({
+        where: { id: ledgerId, userId },
+      });
+      if (!ledger) {
+        throw new ForbiddenException('账本不存在或无权限');
+      }
+
+      // 2. Validate Account belongs to ledger
+      const account = await tx.account.findFirst({
+        where: { id: accountId, ledgerId },
+      });
+      if (!account) {
+        throw new NotFoundException('源账户不存在或不属于该账本');
       }
 
       if (categoryId) {
-        const category = await tx.category.findUnique({
-          where: { id: categoryId },
+        const category = await tx.category.findFirst({
+          where: { id: categoryId, ledgerId },
         });
 
         if (!category) {
-          throw new NotFoundException('Category not found');
+          throw new NotFoundException('分类不存在或不属于该账本');
         }
 
         // 校验分类类型是否与交易类型匹配
@@ -54,13 +66,14 @@ export class TransactionService {
         }
       }
 
-      // 2. Prepare Transaction Data
+      // 3. Prepare Transaction Data
       const data: Prisma.TransactionCreateInput = {
         amount: amountDecimal,
         type,
         date: date ? new Date(date) : new Date(),
         description,
         user: { connect: { id: userId } },
+        ledger: { connect: { id: ledgerId } },
         account: { connect: { id: accountId } },
       };
 
@@ -68,7 +81,7 @@ export class TransactionService {
         data.category = { connect: { id: categoryId } };
       }
 
-      // 3. Handle Balance Updates based on Type
+      // 4. Handle Balance Updates based on Type
       if (type === TransactionType.EXPENSE) {
         await tx.account.update({
           where: { id: accountId },
@@ -81,13 +94,13 @@ export class TransactionService {
         });
       } else if (type === TransactionType.TRANSFER) {
         if (!toAccountId) {
-          throw new BadRequestException('Target account required for transfer');
+          throw new BadRequestException('转账需要目标账户');
         }
-        const toAccount = await tx.account.findUnique({
-          where: { id: toAccountId },
+        const toAccount = await tx.account.findFirst({
+          where: { id: toAccountId, ledgerId },
         });
-        if (!toAccount || toAccount.userId !== userId) {
-          throw new NotFoundException('Target account not found');
+        if (!toAccount) {
+          throw new NotFoundException('目标账户不存在或不属于该账本');
         }
 
         data.toAccountId = toAccountId;
@@ -105,18 +118,29 @@ export class TransactionService {
         });
       }
 
-      // 4. Create Record
+      // 5. Create Record
       return tx.transaction.create({ data });
     });
   }
 
   async findAll(userId: number, query: Record<string, any>) {
-    const { page = 1, limit = 20, type, startDate, endDate } = query;
+    const { page = 1, limit = 20, type, startDate, endDate, ledgerId } = query;
     const skip = (Number(page) - 1) * Number(limit);
+
+    // Validate ledger if provided
+    if (ledgerId) {
+      const ledger = await this.prisma.ledger.findFirst({
+        where: { id: Number(ledgerId), userId },
+      });
+      if (!ledger) {
+        throw new ForbiddenException('账本不存在或无权限');
+      }
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const where: Prisma.TransactionWhereInput = {
       userId,
+      ...(ledgerId && { ledgerId: Number(ledgerId) }),
       ...(type && { type: String(type) }),
       ...(startDate &&
         endDate && {
@@ -154,12 +178,12 @@ export class TransactionService {
 
   async update(id: number, userId: number, dto: UpdateTransactionDto) {
     return this.prisma.$transaction(async (tx) => {
-      const oldTransaction = await tx.transaction.findUnique({
-        where: { id },
+      const oldTransaction = await tx.transaction.findFirst({
+        where: { id, userId },
       });
 
-      if (!oldTransaction || oldTransaction.userId !== userId) {
-        throw new NotFoundException('Transaction not found');
+      if (!oldTransaction) {
+        throw new NotFoundException('交易记录不存在');
       }
 
       // 1. Revert old balance
@@ -207,7 +231,7 @@ export class TransactionService {
         });
       } else if (newType === TransactionType.TRANSFER) {
         if (!newToAccountId)
-          throw new BadRequestException('Transfer needs target account');
+          throw new BadRequestException('转账需要目标账户');
         await tx.account.update({
           where: { id: newAccountId },
           data: { balance: { decrement: newAmount } },
@@ -231,12 +255,12 @@ export class TransactionService {
 
   async remove(id: number, userId: number) {
     return this.prisma.$transaction(async (tx) => {
-      const transaction = await tx.transaction.findUnique({
-        where: { id },
+      const transaction = await tx.transaction.findFirst({
+        where: { id, userId },
       });
 
-      if (!transaction || transaction.userId !== userId) {
-        throw new NotFoundException('Transaction not found');
+      if (!transaction) {
+        throw new NotFoundException('交易记录不存在');
       }
 
       // Revert balance

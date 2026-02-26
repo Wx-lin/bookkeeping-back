@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { StatsService } from './stats.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -22,10 +22,19 @@ export class StatsController {
     summary: '资产概览',
     description: '获取总资产、总负债和净资产',
   })
+  @ApiQuery({
+    name: 'ledgerId',
+    required: false,
+    description: '账本ID，不传则统计所有账本',
+    type: Number,
+  })
   @ApiResponse({ status: 200, description: '返回资产统计数据' })
   @Get('assets')
-  getAssetsOverview(@CurrentUser() user: { id: number }) {
-    return this.statsService.getAssetsOverview(user.id);
+  getAssetsOverview(
+    @CurrentUser() user: { id: number },
+    @Query('ledgerId', new ParseIntPipe({ optional: true })) ledgerId?: number,
+  ) {
+    return this.statsService.getAssetsOverview(user.id, ledgerId);
   }
 
   @ApiOperation({
@@ -42,14 +51,21 @@ export class StatsController {
     required: false,
     description: '结束日期 (YYYY-MM-DD)',
   })
+  @ApiQuery({
+    name: 'ledgerId',
+    required: false,
+    description: '账本ID，不传则统计所有账本',
+    type: Number,
+  })
   @ApiResponse({ status: 200, description: '返回趋势数据' })
   @Get('trend')
   getTrend(
     @CurrentUser() user: { id: number },
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('ledgerId', new ParseIntPipe({ optional: true })) ledgerId?: number,
   ) {
-    return this.statsService.getTrend(user.id, startDate, endDate);
+    return this.statsService.getTrend(user.id, startDate, endDate, ledgerId);
   }
 
   @ApiOperation({
@@ -72,6 +88,12 @@ export class StatsController {
     enum: TransactionType,
     description: '统计类型 (EXPENSE/INCOME)，默认为 EXPENSE',
   })
+  @ApiQuery({
+    name: 'ledgerId',
+    required: false,
+    description: '账本ID，不传则统计所有账本',
+    type: Number,
+  })
   @ApiResponse({ status: 200, description: '返回分类统计数据' })
   @Get('category')
   getCategoryStats(
@@ -79,12 +101,14 @@ export class StatsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('type') type?: TransactionType,
+    @Query('ledgerId', new ParseIntPipe({ optional: true })) ledgerId?: number,
   ) {
     return this.statsService.getCategoryStats(
       user.id,
       startDate,
       endDate,
       type || TransactionType.EXPENSE,
+      ledgerId,
     );
   }
 }

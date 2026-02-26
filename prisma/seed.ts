@@ -69,7 +69,24 @@ async function main() {
     console.log(`Updated user: ${email} password to: ${password}`);
   }
 
-  // 3. Create Accounts for admin
+  // 3. Create Default Ledger for admin if not exists
+  let defaultLedger = await prisma.ledger.findFirst({
+    where: { userId: user.id, isDefault: true },
+  });
+
+  if (!defaultLedger) {
+    defaultLedger = await prisma.ledger.create({
+      data: {
+        name: '默认账本',
+        description: '自动创建的默认账本',
+        isDefault: true,
+        userId: user.id,
+      },
+    });
+    console.log('Default ledger created for admin.');
+  }
+
+  // 4. Create Accounts for admin
   const accountsData = [
     { name: '微信钱包', type: 'WeChat', balance: 50000 },
     { name: '支付宝', type: 'Alipay', balance: 88888 },
@@ -78,7 +95,7 @@ async function main() {
 
   for (const acc of accountsData) {
     const exists = await prisma.account.findFirst({
-      where: { name: acc.name, userId: user.id },
+      where: { name: acc.name, userId: user.id, ledgerId: defaultLedger.id },
     });
     if (!exists) {
       await prisma.account.create({
@@ -87,11 +104,12 @@ async function main() {
           type: acc.type,
           balance: acc.balance,
           userId: user.id,
+          ledgerId: defaultLedger.id,
         },
       });
     }
   }
-  const accounts = await prisma.account.findMany({ where: { userId: user.id } });
+  const accounts = await prisma.account.findMany({ where: { userId: user.id, ledgerId: defaultLedger.id } });
   console.log('Accounts seeded for admin.');
 
   // 4. Create Transactions for admin (Dec 2025 & Jan 2026)
@@ -141,6 +159,7 @@ async function main() {
             date: new Date(t.date),
             description: t.desc,
             userId: user.id,
+            ledgerId: defaultLedger.id,
             accountId: account.id,
             categoryId: category.id,
           },

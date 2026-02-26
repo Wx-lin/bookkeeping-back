@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -8,6 +8,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 
 @ApiTags('分类')
@@ -28,9 +29,18 @@ export class CategoryController {
     summary: '获取分类列表',
     description: '获取所有分类（包含系统默认和用户自定义）',
   })
+  @ApiQuery({
+    name: 'ledgerId',
+    required: false,
+    description: '账本ID，不传则返回所有分类',
+    type: Number,
+  })
   @ApiResponse({ status: 200, description: '返回分类列表' })
   @Get()
-  findAll(@CurrentUser() user: any) {
-    return this.categoryService.findAll(user.id);
+  findAll(
+    @CurrentUser() user: any,
+    @Query('ledgerId', new ParseIntPipe({ optional: true })) ledgerId?: number,
+  ) {
+    return this.categoryService.findAll(user.id, ledgerId);
   }
 }

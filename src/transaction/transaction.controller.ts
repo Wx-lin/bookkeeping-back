@@ -76,6 +76,12 @@ export class TransactionController {
     description: '结束日期 (YYYY-MM-DD)',
     type: String,
   })
+  @ApiQuery({
+    name: 'ledgerId',
+    required: false,
+    description: '账本ID',
+    type: Number,
+  })
   @ApiResponse({ status: 200, description: '返回记账列表' })
   @Get()
   findAll(
@@ -85,6 +91,7 @@ export class TransactionController {
     @Query('type') type?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('ledgerId') ledgerId?: number,
   ) {
     return this.transactionService.findAll(user.id, {
       page,
@@ -92,6 +99,7 @@ export class TransactionController {
       type,
       startDate,
       endDate,
+      ledgerId,
     });
   }
 

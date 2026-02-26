@@ -24,19 +24,44 @@ model User {
   categories   Category[]
   transactions Transaction[]
   chatMessages ChatMessage[]
+  ledgers      Ledger[]
+}
+
+model Ledger {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  accounts     Account[]
+  categories   Category[]
+  transactions Transaction[]
+
+  @@unique([userId, name])
 }
 
 model Account {
-  id        Int      @id @default(autoincrement())
-  name      String
-  type      String?  // e.g., 'Bank', 'Cash', 'Alipay'
-  balance   Decimal  @default(0.00)
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  name         String
+  type         String   @default("OTHER") // CASH, DEBIT, CREDIT, ALIPAY, WECHAT, INVESTMENT, OTHER
+  balance      Decimal  @default(0.00)
+  creditLimit  Decimal? // 信用额度（仅信用卡）
+  isArchived   Boolean  @default(false)   // 是否隐藏/归档
+  sortOrder    Int      @default(0)       // 排序顺序
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  ledgerId     Int
+  ledger       Ledger   @relation(fields: [ledgerId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   transactions Transaction[]
+
+  @@unique([ledgerId, name])
 }
 
 model Category {
@@ -47,10 +72,14 @@ model Category {
   isDefault Boolean  @default(false)
   userId    Int?     // Nullable for system default categories
   user      User?    @relation(fields: [userId], references: [id])
+  ledgerId  Int?     // Nullable for system default categories
+  ledger    Ledger?  @relation(fields: [ledgerId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   transactions Transaction[]
+
+  @@unique([ledgerId, name])
 }
 
 model Transaction {
@@ -59,16 +88,19 @@ model Transaction {
   type        String   // 'EXPENSE' | 'INCOME' | 'TRANSFER'
   date        DateTime @default(now())
   description String?
-  
+
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
+
+  ledgerId    Int
+  ledger      Ledger   @relation(fields: [ledgerId], references: [id])
 
   accountId   Int
   account     Account  @relation(fields: [accountId], references: [id])
 
   categoryId  Int?
   category    Category? @relation(fields: [categoryId], references: [id])
-  
+
   // For Transfer
   toAccountId Int?     // Target account for transfers
 

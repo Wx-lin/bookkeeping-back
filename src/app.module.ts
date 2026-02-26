@@ -10,6 +10,7 @@ import { CategoryModule } from './category/category.module';
 import { TransactionModule } from './transaction/transaction.module';
 import { AiModule } from './ai/ai.module';
 import { StatsModule } from './stats/stats.module';
+import { LedgerModule } from './ledger/ledger.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { StatsModule } from './stats/stats.module';
     TransactionModule,
     AiModule,
     StatsModule,
+    LedgerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

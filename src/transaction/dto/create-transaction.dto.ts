@@ -5,6 +5,7 @@ import {
   IsDateString,
   IsOptional,
   IsEnum,
+  IsInt,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -42,6 +43,11 @@ export class CreateTransactionDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({ description: '所属账本ID', example: 1 })
+  @IsInt()
+  @IsNotEmpty()
+  ledgerId: number;
 
   @ApiProperty({ description: '关联账户 ID', example: 1 })
   @IsNumber()

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsInt, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateAccountDto {
@@ -7,7 +7,11 @@ export class CreateAccountDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiPropertyOptional({ description: '账户类型', example: 'Bank Card' })
+  @ApiPropertyOptional({
+    description: '账户类型',
+    enum: ['CASH', 'DEBIT', 'CREDIT', 'ALIPAY', 'WECHAT', 'INVESTMENT', 'OTHER'],
+    default: 'OTHER',
+  })
   @IsString()
   @IsOptional()
   type?: string;
@@ -20,4 +24,17 @@ export class CreateAccountDto {
   @IsNumber()
   @IsOptional()
   balance?: number;
+
+  @ApiPropertyOptional({
+    description: '信用额度（仅信用卡类型需要）',
+    example: 50000.0,
+  })
+  @IsNumber()
+  @IsOptional()
+  creditLimit?: number;
+
+  @ApiPropertyOptional({ description: '所属账本ID，不传则使用默认账本', example: 1 })
+  @IsInt()
+  @IsOptional()
+  ledgerId?: number;
 }
